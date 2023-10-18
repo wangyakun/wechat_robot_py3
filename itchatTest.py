@@ -46,18 +46,18 @@ class LOG:
             f.write('\n')
 
     def log_text(self, msg, isGroupChat=False):
-        chatNickName = msg['User'].get('NickName') if isGroupChat else None
-        userNickName = msg.actualNickName if isGroupChat else msg['User'].get('NickName')
-        logName = '(群聊)' + chatNickName if isGroupChat else userNickName
-        logger.log(userNickName + ':' + msg['Text'], logName)
+        chatNickName = msg['User'].get('NickName')
+        fromUserNickName = msg.actualNickName if isGroupChat else itchat.search_friends(userName=msg['FromUserName']).get('NickName')
+        logName = '(群聊)' + chatNickName if isGroupChat else chatNickName
+        logger.log('【%s】' % msg.type + fromUserNickName + ':' + msg['Text'], logName)
 
     def log_media(self, msg, isGroupChat=False):
-        chatNickName = msg['User'].get('NickName') if isGroupChat else None
-        userNickName = msg.actualNickName if isGroupChat else msg['User'].get('NickName')
-        logName = '(群聊)' + chatNickName if isGroupChat else userNickName
+        chatNickName = msg['User'].get('NickName')
+        fromUserNickName = msg.actualNickName if isGroupChat else itchat.search_friends(userName=msg['FromUserName']).get('NickName')
+        logName = '(群聊)' + chatNickName if isGroupChat else chatNickName
         download_path = os.path.join(logger.get_resource_dir(logName), msg.fileName)
         msg.download(download_path)
-        logger.log(userNickName + ':【接收到 %s 类型文件，已保存在 %s 】' % (msg.type, download_path), logName)
+        logger.log(fromUserNickName + ':【接收到 %s 类型文件，已保存在 %s 】' % (msg.type, download_path), logName)
 
 logger = LOG()
 
@@ -93,6 +93,7 @@ def text_reply(msg):
     # if msg.isAt:
     #     msg.user.send(u'@%s\u2005I received: %s' % (
     #         msg.actualNickName, msg.text))
+
     logger.log_text(msg, True)
 
 @itchat.msg_register([PICTURE, RECORDING, ATTACHMENT, VIDEO], isGroupChat=True)
