@@ -57,19 +57,15 @@ class LOG:
                             datefmt='%a, %d %b %Y %H:%M:%S',
                             filename=os.path.join(self.LOG_HOME, 'wxRobot.log'),
                             filemode='w')
-        self.set_file('default')
 
-    def set_file(self, user):
-        self.user = user
-
-    def log(self, message):
+    def log(self, message, user='default'):
         if not self.is_record_log:
             return
         now = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         print(now)
         print(message)
         logging.info(message)
-        with open(os.path.join(self.LOG_HOME, self.user + '.log'), 'a') as f:
+        with open(os.path.join(self.LOG_HOME, user + '.log'), 'a') as f:
             f.write(now)
             f.write('\n')
             f.write(message)
@@ -299,9 +295,8 @@ def tuling_reply(msg_info):
     # a or b的意思是，如果a有内容，那么返回a，否则返回b
     # 有内容一般就是指非空或者非None，你可以用`if a: print('True')`来测试
     try:
-        logger.set_file(to_user_nickname)
-        logger.log('%s:%s' % (to_user_nickname, msg_info['Text']))
-        logger.log('rep:%s' % reply if reply else defaultReply)
+        logger.log('%s:%s' % (to_user_nickname, msg_info['Text']), to_user_nickname)
+        logger.log('rep:%s' % reply if reply else defaultReply, to_user_nickname)
     except Exception as e:
         print(str(e))
         print("Exception ignored!!!!")
@@ -331,12 +326,23 @@ def tuling_reply(msg_info):
     else:
         return msg_with_label(reply or defaultReply)
 
+@itchat.msg_register(itchat.content.TEXT, isGroupChat=True)
+def text_reply(msg):
+    if msg.isAt:
+        msg.user.send(u'@%s\u2005I received: %s' % (
+            msg.actualNickName, msg.text))
+
+
+def lc():
+    send_msg('机器人后台-启动', 'filehelper')
+
+def ec():
+    send_msg('机器人后台-退出', 'filehelper')
 
 def main():
     # 为了让实验过程更加方便（修改程序不用多次扫码），我们使用热启动
     # itchat.auto_login(hotReload=True, enableCmdQR=True)
-    itchat.auto_login(hotReload=True, enableCmdQR=False)
-    send_msg('Hello, filehelper', 'filehelper')
+    itchat.auto_login(hotReload=True, enableCmdQR=False, loginCallback=lc, exitCallback=ec)
     # print itchat.get_chatrooms(update=True)
     itchat.run()
 
