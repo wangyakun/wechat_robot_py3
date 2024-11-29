@@ -57,7 +57,7 @@ class LOG:
         logName = '(群聊)' + chatNickName if isGroupChat else chatNickName
         download_path = os.path.join(logger.get_resource_dir(logName), msg.fileName)
         msg.download(download_path)
-        logger.log(fromUserNickName + ':【接收到 %s 类型文件，已保存在 %s 】' % (msg.type, download_path), logName)
+        logger.log(fromUserNickName + ':【接收到 %s 类型文件，已保存在 %s】' % (msg.type, download_path), logName)
 
 logger = LOG()
 
@@ -100,11 +100,19 @@ def text_reply(msg):
 def download_files(msg):
     logger.log_media(msg, True)
 
+def lc():
+    pass
+
+def ec():
+    pass
+
+
 if __name__ == '__main__':
     try:
-        itchat.auto_login(True)
+        itchat.auto_login(True, loginCallback=lc, exitCallback=ec)
         itchat.run(True)
         print('end!!!!!')
     except Exception as e:
         print(traceback.format_exc())
         time.sleep(5)
+

@@ -30,6 +30,8 @@ help_info = '''“delay close” 关闭延时回复
 “set label open” 打开【机器人自动回复】标签
 “close” 关闭机器人自动回复
 “open” 打开机器人自动回复
+“set default open” 机器人默认自动回复
+“set default close” 机器人默认不自动回复
 “set close XXX” 针对XXX强制关闭自动回复(XXX为昵称)
 “set open XXX” 针对XXX强制打开自动回复
 “set cancel XXX” 把XXX从自动回复列表中取消
@@ -38,6 +40,7 @@ help_info = '''“delay close” 关闭延时回复
 “set closelist XXX,XXX,XXX” 对多人屏蔽自动回复
 “auther” 作者信息'''
 
+is_auto_rep = True
 is_delay_rep = False
 is_disturb = False
 is_robot_label_display = True
@@ -85,7 +88,11 @@ class RepListManager:
         self.save_no_auto_rep_list()
 
     def judge_auto_rep(self, user):
-        return self.auto_rep_dict.get(user) if self.auto_rep_dict.get(user) is not None else self.is_defualt_auto_rep
+        if not is_auto_rep:
+            return False
+        if self.auto_rep_dict.get(user) is not None:
+            return self.auto_rep_dict.get(user)
+        return self.is_defualt_auto_rep
 
     def remove_auto_rep(self, user):
         if user in self.auto_rep_dict:
@@ -115,7 +122,7 @@ def send_msg(msg_text, user):
 
 
 def ctl_msg(msg_info):
-    global logger, rep_mgr, is_delay_rep, is_disturb, is_robot_label_display
+    global logger, rep_mgr, is_auto_rep, is_delay_rep, is_disturb, is_robot_label_display
     if msg_info['ToUserName'] != 'filehelper':
         return False
     print('!!!this is admin!!!')
@@ -124,11 +131,17 @@ def ctl_msg(msg_info):
 
 
     if msg_info['Text'] == 'open':
-        rep_mgr.is_defualt_auto_rep = True
+        is_auto_rep = True
         send_msg(u'机器人已开启', 'filehelper')
     elif msg_info['Text'] == 'close':
-        rep_mgr.is_defualt_auto_rep = False
+        is_auto_rep = False
         send_msg(u'机器人已关闭', 'filehelper')
+    elif msg_info['Text'] == 'set default open':
+        rep_mgr.is_defualt_auto_rep = True
+        send_msg(u'机器人已默认回复', 'filehelper')
+    elif msg_info['Text'] == 'set default close':
+        rep_mgr.is_defualt_auto_rep = False
+        send_msg(u'机器人已默认不回复', 'filehelper')
     elif msg_info['Text'].startswith('set open '):
         user = msg_info['Text'][9:]
         rep_mgr.set_auto_rep(user, True)
@@ -163,12 +176,13 @@ def ctl_msg(msg_info):
         print(rep_mgr.auto_rep_dict)
         send_msg(u'自动回复列表：\n' + str(rep_mgr.auto_rep_dict), 'filehelper')
     elif msg_info['Text'] == 'status':
-        rep_msg = "当前状态：\n" \
-                  "机器人是否开启：%s\n" \
-                  "自动回复标签是否开启：%s\n" \
-                  "延时回复模式是否开启：%s\n" \
-                  "打扰模式（自动回复“怎么不说话了”）是否开启：%s"
-        send_msg(rep_msg % (rep_mgr.is_defualt_auto_rep, is_robot_label_display, is_delay_rep, is_disturb), 'filehelper')
+        rep_msg = f"当前状态：\n" \
+                  f"机器人是否开启：{is_auto_rep}\n" \
+                  f"机器人默认是否自动回复：{rep_mgr.is_defualt_auto_rep}\n" \
+                  f"自动回复标签是否开启：{is_robot_label_display}\n" \
+                  f"延时回复模式是否开启：{is_delay_rep}\n" \
+                  f"打扰模式（自动回复“怎么不说话了”）是否开启：{is_disturb}"
+        send_msg(rep_msg, 'filehelper')
     elif msg_info['Text'].startswith('delay '):
         ctrl = msg_info['Text'][6:]
         if ctrl == 'open':
@@ -222,10 +236,31 @@ def ctl_msg(msg_info):
 #         # 将会返回一个None
 #         return
 
-# 使用青云客机器人回复，回复速度会慢一些
 def get_response(msg_text, userid='wechat-robot'):
     # 这里我们就像在“3. 实现最简单的与图灵机器人的交互”中做的一样
     # 构造了要发送给服务器的数据
+    #return get_response_by_qingyunke(msg_text)
+    return get_response_by_local(msg_text)
+
+# 本地需要启动推理服务：llamafactory-cli api --template=qwen --model_name_or_path="D:\code\work\maas\dev\aict\dataset&modelset\Qwen1.5-0.5B-Chat"
+def get_response_by_local(msg_text):
+    url = r'http://localhost:8000/v1/chat/completions'
+    headers = {'Content-Type': 'application/json'}
+    data = {
+        "model": "Qwen1.5-0.5B",
+        "messages": [{"role": "user", "content": msg_text}],
+        "max_tokens": 2048
+    }
+    try:
+        resp = requests.post(url=url, headers=headers, json=data)
+        print(f'inference responce: {resp.json()}')
+        return resp.json()['choices'][0]['message']['content']
+    except:
+        # 将会返回一个None
+        return
+
+# 使用青云客机器人回复，回复速度会慢一些
+def get_response_by_qingyunke(msg_text):
     apiUrl = 'http://api.qingyunke.com/api.php'
     params = {
         'key': 'free',
@@ -342,7 +377,8 @@ def ec():
 def main():
     # 为了让实验过程更加方便（修改程序不用多次扫码），我们使用热启动
     # itchat.auto_login(hotReload=True, enableCmdQR=True)
-    itchat.auto_login(hotReload=True, enableCmdQR=False, loginCallback=lc, exitCallback=ec)
+    cmdQR = False
+    itchat.auto_login(hotReload=True, enableCmdQR=True if sys.platform.startswith('linux') else False, loginCallback=lc, exitCallback=ec)
     # print itchat.get_chatrooms(update=True)
     itchat.run()
 
