@@ -1,6 +1,8 @@
 # coding=utf8
 __author__ = 'WYK'
 
+import argparse
+
 import os
 import time
 import logging
@@ -47,7 +49,9 @@ is_robot_label_display = True
 last_repl_time = datetime.datetime.now()
 pic_repl_list = [u'[发呆]', u'[呲牙]', u'[愉快]', u'[偷笑]', u'[憨笑]', u'[抠鼻]', u'[坏笑]', u'[阴险]', u'[嘿哈]',
                  u'[奸笑]', u'[机智]']
-
+model_api_type = 'local'
+model_api_url = r'http://localhost:8000/v1/chat/completions'
+model_api_prompt = '你是个幽默风趣的聊天小助手。'
 
 class LOG:
     def __init__(self):
@@ -77,8 +81,8 @@ class LOG:
 
 class RepListManager:
     def __init__(self):
-        self.is_defualt_auto_rep = False
-        self.NO_AUTO_REP_LIST_FILE = r'D:\log\noAutoRepList'
+        self.is_default_auto_rep = False
+        self.AUTO_REP_DICT_FILE = r'D:\log\noAutoRepList'
         self.auto_rep_dict = {}
 
     def set_auto_rep(self, user, is_rep):
@@ -92,30 +96,67 @@ class RepListManager:
             return False
         if self.auto_rep_dict.get(user) is not None:
             return self.auto_rep_dict.get(user)
-        return self.is_defualt_auto_rep
+        return self.is_default_auto_rep
 
     def remove_auto_rep(self, user):
         if user in self.auto_rep_dict:
             self.auto_rep_dict.pop(user)
 
     def save_no_auto_rep_list(self):
-        with open(self.NO_AUTO_REP_LIST_FILE, 'w') as f:
+        with open(self.AUTO_REP_DICT_FILE, 'w') as f:
             f.write(str(self.auto_rep_dict))
 
     def load_no_auto_rep_list(self):
-        if not os.path.exists(self.NO_AUTO_REP_LIST_FILE):
+        if not os.path.exists(self.AUTO_REP_DICT_FILE):
             return False
-        with open(self.NO_AUTO_REP_LIST_FILE, 'r') as f:
+        with open(self.AUTO_REP_DICT_FILE, 'r') as f:
             self.auto_rep_dict = dict(eval(f.read()))
 
 
 logger = LOG()
 rep_mgr = RepListManager()
 
+
+def set_global_args(args):
+    global logger, rep_mgr, is_auto_rep, is_delay_rep, is_disturb, is_robot_label_display, model_api_type, model_api_url, model_api_prompt
+    is_auto_rep = args.is_auto_rep
+    rep_mgr.is_default_auto_rep = args.is_default_auto_rep
+    is_delay_rep = args.is_delay_rep
+    is_disturb = args.is_disturb
+    is_robot_label_display = args.is_robot_label_display
+    model_api_type = args.model_api_type
+    model_api_url = args.model_api_custom_url
+    model_api_prompt = args.model_api_custom_prompt
+    logger.LOG_HOME = args.log_home
+    rep_mgr.AUTO_REP_DICT_FILE = args.auto_rep_dict_file
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Run wechatRobot Task")
+    parser.add_argument('--no_auto_rep', dest="is_auto_rep", action='store_false', default=True,
+                        help='关闭机器人自动回复')
+    parser.add_argument('--no_default_auto_rep', dest="is_default_auto_rep", action='store_false', default=False,
+                        help='机器人默认不自动回复')
+    parser.add_argument('--no_delay_rep', dest="is_delay_rep", action='store_false', default=False, help='关闭延时回复')
+    parser.add_argument('--no_disturb', dest="is_disturb", action='store_false', default=False, help='关闭打扰模式')
+    parser.add_argument('--no_robot_label_display', dest="is_robot_label_display", action='store_false', default=True,
+                        help='关闭机器人自动回复标签')
+    parser.add_argument('--model_api_type', type=str, default='local', choices=['local', 'remote', 'custom'],
+                        help='Type of the model inference api server')
+    parser.add_argument('--model_api_custom_url', type=str, default=r'http://localhost:8000/v1/chat/completions', help='机器人api接口')
+    parser.add_argument('--model_api_custom_prompt', type=str, default='你是个幽默风趣的聊天小助手。', help='机器人提示词')
+    parser.add_argument('--log_home', type=str, default=r'D:\log\wxRobotLog', help='日志存放目录')
+    parser.add_argument('--auto_rep_dict_file', type=str, default=r'D:\log\AutoRepDict',
+                        help='是否自动回复的用户字典文件地址')
+    args = parser.parse_args()
+    return args
+
+
 def msg_with_label(msg_text):
     if is_robot_label_display:
         msg_text = u'【机器人自动回复】' + msg_text
     return msg_text
+
 
 def send_msg(msg_text, user):
     itchat.send(msg_with_label(msg_text), user)
@@ -129,7 +170,6 @@ def ctl_msg(msg_info):
     print('msg:')
     print(msg_info['Text'])
 
-
     if msg_info['Text'] == 'open':
         is_auto_rep = True
         send_msg(u'机器人已开启', 'filehelper')
@@ -137,10 +177,10 @@ def ctl_msg(msg_info):
         is_auto_rep = False
         send_msg(u'机器人已关闭', 'filehelper')
     elif msg_info['Text'] == 'set default open':
-        rep_mgr.is_defualt_auto_rep = True
+        rep_mgr.is_default_auto_rep = True
         send_msg(u'机器人已默认回复', 'filehelper')
     elif msg_info['Text'] == 'set default close':
-        rep_mgr.is_defualt_auto_rep = False
+        rep_mgr.is_default_auto_rep = False
         send_msg(u'机器人已默认不回复', 'filehelper')
     elif msg_info['Text'].startswith('set open '):
         user = msg_info['Text'][9:]
@@ -178,7 +218,7 @@ def ctl_msg(msg_info):
     elif msg_info['Text'] == 'status':
         rep_msg = f"当前状态：\n" \
                   f"机器人是否开启：{is_auto_rep}\n" \
-                  f"机器人默认是否自动回复：{rep_mgr.is_defualt_auto_rep}\n" \
+                  f"机器人默认是否自动回复：{rep_mgr.is_default_auto_rep}\n" \
                   f"自动回复标签是否开启：{is_robot_label_display}\n" \
                   f"延时回复模式是否开启：{is_delay_rep}\n" \
                   f"打扰模式（自动回复“怎么不说话了”）是否开启：{is_disturb}"
@@ -239,16 +279,23 @@ def ctl_msg(msg_info):
 def get_response(msg_text, userid='wechat-robot'):
     # 这里我们就像在“3. 实现最简单的与图灵机器人的交互”中做的一样
     # 构造了要发送给服务器的数据
-    #return get_response_by_qingyunke(msg_text)
-    return get_response_by_local(msg_text)
+    if model_api_type == 'local':
+        return get_response_by_api_cli(msg_text, prompt=model_api_prompt)
+    elif model_api_type == 'remote':
+        return get_response_by_qingyunke(msg_text)
+    else:  # model_api_type == 'custom'
+        return get_response_by_api_cli(msg_text, model_api_url, model_api_prompt)
+
 
 # 本地需要启动推理服务：llamafactory-cli api --template=qwen --model_name_or_path="D:\code\work\maas\dev\aict\dataset&modelset\Qwen1.5-0.5B-Chat"
-def get_response_by_local(msg_text):
-    url = r'http://localhost:8000/v1/chat/completions'
+def get_response_by_api_cli(msg_text, url=r'http://localhost:8000/v1/chat/completions', prompt="你是个幽默风趣的聊天小助手。"):
     headers = {'Content-Type': 'application/json'}
     data = {
         "model": "Qwen1.5-0.5B",
-        "messages": [{"role": "user", "content": msg_text}],
+        "messages": [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": msg_text}
+        ],
         "max_tokens": 2048
     }
     try:
@@ -258,6 +305,7 @@ def get_response_by_local(msg_text):
     except:
         # 将会返回一个None
         return
+
 
 # 使用青云客机器人回复，回复速度会慢一些
 def get_response_by_qingyunke(msg_text):
@@ -361,6 +409,7 @@ def tuling_reply(msg_info):
     else:
         return msg_with_label(reply or defaultReply)
 
+
 @itchat.msg_register(itchat.content.TEXT, isGroupChat=True)
 def text_reply(msg):
     if msg.isAt:
@@ -371,19 +420,28 @@ def text_reply(msg):
 def lc():
     send_msg('机器人后台-启动', 'filehelper')
 
+
 def ec():
     send_msg('机器人后台-退出', 'filehelper')
+
 
 def main():
     # 为了让实验过程更加方便（修改程序不用多次扫码），我们使用热启动
     # itchat.auto_login(hotReload=True, enableCmdQR=True)
     cmdQR = False
-    itchat.auto_login(hotReload=True, enableCmdQR=True if sys.platform.startswith('linux') else False, loginCallback=lc, exitCallback=ec)
+    itchat.auto_login(hotReload=True, enableCmdQR=True if sys.platform.startswith('linux') else False, loginCallback=lc,
+                      exitCallback=ec)
     # print itchat.get_chatrooms(update=True)
     itchat.run()
 
 
 if __name__ == '__main__':
+    args = parse_args()
+    set_global_args(args)
+    if model_api_type == 'local':
+        print('本地需要启动推理服务：\n'
+              r'llamafactory-cli api --template=qwen --model_name_or_path="D:\code\work\maas\dev\aict\dataset&modelset\Qwen1.5-0.5B-Chat"')
+
     rep_mgr.load_no_auto_rep_list()
     # while True:
     try:
