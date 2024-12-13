@@ -36,13 +36,14 @@ def ctl_msg(msg):
         robot_instance_num += 1
         itchat.send(f'新登录,子进程号：{robot_instance_num}', 'filehelper')
         curr_process_dir = os.path.join(backend_dir, str(robot_instance_num))
+        curr_process_auto_rep_dict_file = os.path.join(curr_process_dir, 'AutoRepDict')
         curr_process_logs_dir = os.path.join(curr_process_dir, 'logs')
         curr_process_qr_path = os.path.join(curr_process_dir, 'QR.png')
         curr_process_output_path = os.path.join(curr_process_dir, 'output_and_errors.txt')
         os.makedirs(curr_process_dir)
         os.makedirs(curr_process_logs_dir)
         cmd_list = ['python', os.path.join(curr_dir, 'selfWechatRobot.py'), f'--qrcode_dir={curr_process_qr_path}',
-                    f'--log_home={curr_process_logs_dir}', '--no_hot_reload']
+                    f'--log_home={curr_process_logs_dir}', '--no_hot_reload', f'--auto_rep_dict_file={curr_process_auto_rep_dict_file}']
         print(f'cmd:{" ".join(cmd_list)}')
         with open(curr_process_output_path, 'w') as outfile:
             process = subprocess.Popen(cmd_list, stdout=outfile, stderr=subprocess.STDOUT)
@@ -73,10 +74,16 @@ def tuling_reply(msg):
     if ctl_msg(msg):
         return
 
+def lc():
+    itchat.send('机器人管理后台-启动', 'filehelper')
+
+
+def ec():
+    itchat.send('机器人管理后台-退出', 'filehelper')
 
 def main():
     # itchat.auto_login(hotReload=True, enableCmdQR=True)
-    itchat.auto_login(hotReload=True, enableCmdQR=False)
+    itchat.auto_login(hotReload=True, enableCmdQR=False, loginCallback=lc, exitCallback=ec)
     itchat.run()
 
 
