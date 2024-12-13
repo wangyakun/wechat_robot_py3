@@ -24,6 +24,8 @@ import importlib, sys
 
 importlib.reload(sys)
 
+hot_reload = True
+qrcode_dir = os.path.dirname(os.path.realpath(__file__))
 help_info = '''“delay close” 关闭延时回复
 “delay open” 打开延时回复
 “disturb close” 关闭打扰模式
@@ -118,7 +120,9 @@ rep_mgr = RepListManager()
 
 
 def set_global_args(args):
-    global logger, rep_mgr, is_auto_rep, is_delay_rep, is_disturb, is_robot_label_display, model_api_type, model_api_url, model_api_prompt
+    global hot_reload, qrcode_dir, logger, rep_mgr, is_auto_rep, is_delay_rep, is_disturb, is_robot_label_display, model_api_type, model_api_url, model_api_prompt
+    hot_reload = args.hot_reload
+    qrcode_dir = args.qrcode_dir
     is_auto_rep = args.is_auto_rep
     rep_mgr.is_default_auto_rep = args.is_default_auto_rep
     is_delay_rep = args.is_delay_rep
@@ -132,7 +136,7 @@ def set_global_args(args):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Run wechatRobot Task")
+    parser = argparse.ArgumentParser(description="Run wechatRobot")
     parser.add_argument('--no_auto_rep', dest="is_auto_rep", action='store_false', default=True,
                         help='关闭机器人自动回复')
     parser.add_argument('--no_default_auto_rep', dest="is_default_auto_rep", action='store_false', default=False,
@@ -146,6 +150,8 @@ def parse_args():
     parser.add_argument('--model_api_custom_url', type=str, default=r'http://localhost:8000/v1/chat/completions', help='机器人api接口')
     parser.add_argument('--model_api_custom_prompt', type=str, default='你是个幽默风趣的聊天小助手。', help='机器人提示词')
     parser.add_argument('--log_home', type=str, default=r'D:\log\wxRobotLog', help='日志存放目录')
+    parser.add_argument('--qrcode_dir', type=str, default=os.path.dirname(os.path.realpath(__file__)), help='二维码图片存放目录')
+    parser.add_argument('--no_hot_reload', dest='hot_reload', action='store_false', default=True, help='启动时是否直接加载上次（不久前）的登录信息')
     parser.add_argument('--auto_rep_dict_file', type=str, default=r'D:\log\AutoRepDict',
                         help='是否自动回复的用户字典文件地址')
     args = parser.parse_args()
@@ -218,7 +224,7 @@ def ctl_msg(msg_info):
     elif msg_info['Text'] == 'status':
         rep_msg = f"当前状态：\n" \
                   f"机器人是否开启：{is_auto_rep}\n" \
-                  f"机器人默认是否自动回复：{rep_mgr.is_default_auto_rep}\n" \
+                  f"机器人默认（对不在自动回复列表的用户）是否自动回复：{rep_mgr.is_default_auto_rep}\n" \
                   f"自动回复标签是否开启：{is_robot_label_display}\n" \
                   f"延时回复模式是否开启：{is_delay_rep}\n" \
                   f"打扰模式（自动回复“怎么不说话了”）是否开启：{is_disturb}"
@@ -428,14 +434,15 @@ def ec():
 def main():
     # 为了让实验过程更加方便（修改程序不用多次扫码），我们使用热启动
     # itchat.auto_login(hotReload=True, enableCmdQR=True)
-    cmdQR = False
-    itchat.auto_login(hotReload=True, enableCmdQR=True if sys.platform.startswith('linux') else False, loginCallback=lc,
-                      exitCallback=ec)
+    cmdQR = True if sys.platform.startswith('linux') else False
+    itchat.auto_login(hotReload=hot_reload, enableCmdQR=cmdQR, loginCallback=lc,
+                      exitCallback=ec, picDir=qrcode_dir)
     # print itchat.get_chatrooms(update=True)
     itchat.run()
 
 
 if __name__ == '__main__':
+    print('!!!!!!start!!!!!!!!')
     args = parse_args()
     set_global_args(args)
     if model_api_type == 'local':
