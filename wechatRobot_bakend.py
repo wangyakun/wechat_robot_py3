@@ -42,7 +42,7 @@ def ctl_msg(msg):
         curr_process_output_path = os.path.join(curr_process_dir, 'output_and_errors.txt')
         os.makedirs(curr_process_dir)
         os.makedirs(curr_process_logs_dir)
-        cmd_list = ['python', os.path.join(curr_dir, 'selfWechatRobot.py'), f'--qrcode_dir={curr_process_qr_path}',
+        cmd_list = ['python', os.path.join(curr_dir, 'selfWechatRobot.py'), f'--qrcode_path={curr_process_qr_path}',
                     f'--log_home={curr_process_logs_dir}', '--no_hot_reload', f'--auto_rep_dict_file={curr_process_auto_rep_dict_file}']
         print(f'cmd:{" ".join(cmd_list)}')
         with open(curr_process_output_path, 'w') as outfile:

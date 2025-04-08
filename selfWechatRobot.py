@@ -132,7 +132,7 @@ def parse_args():
     parser.add_argument('--model_api_custom_url', type=str, default=r'http://localhost:8000/v1/chat/completions', help='机器人api接口')
     parser.add_argument('--model_api_custom_prompt', type=str, default='你是个幽默风趣的聊天小助手。', help='机器人提示词')
     parser.add_argument('--log_home', type=str, default=r'D:\log\wxRobotLog', help='日志存放目录')
-    parser.add_argument('--qrcode_dir', type=str, default=os.path.join(os.path.dirname(os.path.realpath(__file__)), 'QR.png'), help='二维码图片存放目录')
+    parser.add_argument('--qrcode_path', type=str, default=os.path.join(os.path.dirname(os.path.realpath(__file__)), 'QR.png'), help='二维码图片存放目录')
     parser.add_argument('--no_hot_reload', dest='hot_reload', action='store_false', default=True, help='启动时是否直接加载上次（不久前）的登录信息')
     parser.add_argument('--auto_rep_dict_file', type=str, default=r'D:\log\AutoRepDict',
                         help='是否自动回复的用户字典文件地址')
@@ -204,12 +204,7 @@ def ctl_msg(msg_info):
         print(rep_mgr.auto_rep_dict)
         send_msg(u'自动回复列表：\n' + str(rep_mgr.auto_rep_dict), 'filehelper')
     elif msg_info['Text'] == 'status':
-        rep_msg = f"当前状态：\n" \
-                  f"机器人是否开启：{configs.is_auto_rep}\n" \
-                  f"机器人默认（对不在自动回复列表的用户）是否自动回复：{configs.is_default_auto_rep}\n" \
-                  f"自动回复标签是否开启：{configs.is_robot_label_display}\n" \
-                  f"延时回复模式是否开启：{configs.is_delay_rep}\n" \
-                  f"打扰模式（自动回复“怎么不说话了”）是否开启：{configs.is_disturb}"
+        rep_msg = list_status()
         send_msg(rep_msg, 'filehelper')
     elif msg_info['Text'].startswith('delay '):
         ctrl = msg_info['Text'][6:]
@@ -240,6 +235,16 @@ def ctl_msg(msg_info):
     elif msg_info['Text'] == 'help':
         send_msg(help_info, 'filehelper')
     return True
+
+
+def list_status():
+    return f"当前状态：\n" \
+           f"机器人是否开启：{configs.is_auto_rep}\n" \
+           f"机器人默认（对不在自动回复列表的用户）是否自动回复：{configs.is_default_auto_rep}\n" \
+           f"自动回复标签是否开启：{configs.is_robot_label_display}\n" \
+           f"延时回复模式是否开启：{configs.is_delay_rep}\n" \
+           f"打扰模式（自动回复“怎么不说话了”）是否开启：{configs.is_disturb}\n" \
+           u'自动回复列表：\n' + str(rep_mgr.auto_rep_dict)
 
 
 # #图灵机器人已失效
@@ -276,10 +281,12 @@ def get_response(msg_text, userid='wechat-robot'):
 
 
 # 本地需要启动推理服务：llamafactory-cli api --template=qwen --model_name_or_path="D:\code\work\maas\dev\aict\dataset&modelset\Qwen1.5-0.5B-Chat"
+# 本地需要启动推理服务：llamafactory-cli api --template=deepseek3 --model_name_or_path="D:\code\work\maas\dev\aict\dataset&modelset\DeepSeek-R1-Distill-Qwen-1.5B"
 def get_response_by_api_cli(msg_text, url=r'http://localhost:8000/v1/chat/completions', prompt="你是个幽默风趣的聊天小助手。"):
     headers = {'Content-Type': 'application/json'}
     data = {
-        "model": "Qwen1.5-0.5B",
+        "model": "deepseek",
+        # "model": "Qwen1.5-0.5B",
         "messages": [
             {"role": "system", "content": prompt},
             {"role": "user", "content": msg_text}
@@ -356,8 +363,6 @@ def tuling_reply(msg_info):
     if ctl_msg(msg_info):
         return
     to_user_nickname = msg_info['User'].get('NickName')
-    if not rep_mgr.judge_auto_rep(to_user_nickname):
-        return
 
     # 为了保证在图灵Key出现问题的时候仍旧可以回复，这里设置一个默认回复
     defaultReply = 'I received: ' + msg_info['Text']
@@ -371,6 +376,14 @@ def tuling_reply(msg_info):
     except Exception as e:
         print(str(e))
         print("Exception ignored!!!!")
+
+    # 如果在不回复列表，就先回复给本人
+    if not rep_mgr.judge_auto_rep(to_user_nickname):
+        myself = itchat.search_friends()
+        # 这条消息是别人发给我的，或者我自己发给自己的
+        if myself['UserName'] != msg_info['FromUserName'] or myself['UserName'] == msg_info['User']['UserName']:
+            send_msg(f"msg to {to_user_nickname}: {msg_info['Text']} \n i can reply: {reply or defaultReply}", myself['UserName'])
+        return
 
     last_repl_time = datetime.datetime.now()
     if configs.is_disturb:
@@ -407,7 +420,7 @@ def text_reply(msg):
 
 def lc():
     send_msg('机器人后台-启动', 'filehelper')
-
+    send_msg(list_status(), 'filehelper')
 
 def ec():
     send_msg('机器人后台-退出', 'filehelper')
@@ -421,7 +434,8 @@ def main():
     rep_mgr = RepListManager()
     if configs.model_api_type == 'local':
         print('本地需要启动推理服务：\n'
-              r'llamafactory-cli api --template=qwen --model_name_or_path="D:\code\work\maas\dev\aict\dataset&modelset\Qwen1.5-0.5B-Chat"')
+              r'llamafactory-cli api --template=deepseek3 --model_name_or_path="D:\code\work\maas\dev\aict\dataset&modelset\DeepSeek-R1-Distill-Qwen-1.5B"')
+              # r'llamafactory-cli api --template=qwen --model_name_or_path="D:\code\work\maas\dev\aict\dataset&modelset\Qwen1.5-0.5B-Chat"')
 
     rep_mgr.load_no_auto_rep_list()
 
@@ -429,7 +443,7 @@ def main():
     # itchat.auto_login(hotReload=True, enableCmdQR=True)
     cmdQR = True if sys.platform.startswith('linux') else False
     itchat.auto_login(hotReload=configs.hot_reload, enableCmdQR=cmdQR, loginCallback=lc,
-                      exitCallback=ec, picDir=configs.qrcode_dir)
+                      exitCallback=ec, picDir=configs.qrcode_path)
     # print itchat.get_chatrooms(update=True)
     itchat.run()
 
